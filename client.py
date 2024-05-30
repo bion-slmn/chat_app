@@ -2,6 +2,8 @@ import socket
 import json
 import threading
 import logging
+import sys
+import signal
 
 
 class Client:
@@ -9,6 +11,20 @@ class Client:
         self.port = port
         self.ip_address = ip_address
         self.server = ''
+        self.running = True
+
+    def __enter__(self):
+        '''
+        start the server
+        '''
+        self.start_client()
+
+    def __exit__(self, exc_type:str, exc_value: int, traceback: int) -> bool:
+        '''
+        exit well
+        '''
+        self.server.close()
+
 
     def create_server(self):
         try:
@@ -20,6 +36,7 @@ class Client:
                 f'Starting server at PORT {self.port} IP {self.ip_address}')
         except Exception as e:
             self.message_logger(f'Error occurred: {e}')
+            sys.exit()
 
     def handle_client(self):
         while True:
@@ -36,7 +53,7 @@ class Client:
 
     def start_client(self):
         phone_no = input('Enter Your Phone No: ')
-        send_to = input('Enter the phone number :')
+        send_to = input('Enter the phone number of reciever :')
 
         self.create_server()
 
@@ -44,11 +61,15 @@ class Client:
         client_handler_thread = threading.Thread(target=self.handle_client)
         client_handler_thread.start()
 
-        while True:
-            msg = input('Enter message :')
-            data = {'from': phone_no, 'text': msg, 'to': send_to}
-            json_data = json.dumps(data)
-            self.server.send(json_data.encode('utf-8'))
+        
+        while self.running:
+            try:
+                msg = input('Enter message :')
+                data = {'from': phone_no, 'text': msg, 'to': send_to}
+                json_data = json.dumps(data)
+                self.server.send(json_data.encode('utf-8'))
+            except Exception as error:
+                break
 
     @staticmethod
     def message_logger(message, level=20):
@@ -57,5 +78,6 @@ class Client:
         logging.log(level, message)
 
 
-client = Client(8000, 'localhost')
-client.start_client()
+with Client(8001, 'localhost'):
+    print('Client clossed')
+
