@@ -7,6 +7,7 @@ import json
 import threading
 import logging
 import signal
+import sys
 
 
 class Server:
@@ -22,6 +23,7 @@ class Server:
         self.ip_address = ip_address
         self.server = ''
         self.clients = {}
+        self.connected = True
 
     def __enter__(self) -> 'Server':
         '''
@@ -44,7 +46,7 @@ class Server:
             client.close()
 
         self.server.close()
-        self.message_logger('Sever has clossed')
+        self.message_logger('Sever has closed')
         return True
 
     def sigInt_handler(self, signum: int, frame: type) -> None:
@@ -65,7 +67,7 @@ class Server:
         self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server.listen(5)
         self.message_logger(
-            f' Starting server at PORT {self.port} IP {self.ip_address}')
+            f'Starting server at PORT {self.port} IP {self.ip_address}')
 
     def accept_connection(self) -> None:
         '''
@@ -86,7 +88,7 @@ class Server:
                 client_socket, ip_address))
         thread.start()
 
-    def send_message(self, message: str):
+    def send_message(self, message: str) -> bool:
         '''
         send a message to the receiver number
         '''
@@ -94,17 +96,20 @@ class Server:
             reciever_number = message.get('to')
             receiver_socket = self.clients.get(reciever_number)
 
-            if receiver_socket:
-                data = {'from': reciever_number,
-                        'message': message.get('text'),
-                        }
-                json_data = json.dumps(data)
-                receiver_socket.send(json_data.encode('utf-8'))
-                return True
-            return False
+            if not receiver_socket:
+                return False
+    
+            data = {'from': reciever_number,
+                    'message': message.get('text'),
+                    }
+            json_data = json.dumps(data)
+            receiver_socket.send(json_data.encode('utf-8'))
+            return True
+    
         except Exception as error:
             del self.clients[reciever_number]
-            message_logger(f'Error : {reciever_number} Not connected')
+            self.message_logger(f'Error : {reciever_number} Not connected')
+            return False
 
     def handle_client(self, client_socket: socket, address: str):
         '''
@@ -118,7 +123,6 @@ class Server:
                 client_socket.close()
                 break
             message = json.loads(message)
-
             # store the client
             client_number = message.get('from')
             self.clients[client_number] = client_socket
@@ -133,15 +137,16 @@ class Server:
         '''
         signal.signal(signal.SIGINT, self.sigInt_handler)
         self.create_server()
-        self.connected = True
 
         while self.connected:
+            print(self.connected)
             try:
                 conn, address = self.accept_connection()
                 self.message_logger(f'Connection from {address}')
 
                 # start a thread for each connection
                 self.start_thread(conn, *address)
+                print(2222222222)
 
             except OSError as e:
                 if not self.connected:
@@ -150,7 +155,8 @@ class Server:
                     self.message_logger(f'Error: {e}')
                 break
             except Exception as error:
-                conn.close()
+                print(error)
+    
 
     @staticmethod
     def message_logger(message, level=20):
@@ -162,4 +168,3 @@ class Server:
 if __name__ == '__main__':
     with Server(8001, 'localhost'):
         print('start')
-sys.exit()

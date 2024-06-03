@@ -1,8 +1,9 @@
 
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock, call, PropertyMock
 from server import Server
 import unittest
 import socket
+import signal
 
 
 class TestServer(unittest.TestCase):
@@ -169,7 +170,8 @@ class TestServer(unittest.TestCase):
         self.assertEqual(result, False)
 
     @patch('server.json.dumps')
-    def test_send_message_with_recieve_socket(self, mock_json) -> None:
+    def test_send_message_with_recieve_socket(self,
+                                              mock_json: MagicMock) -> None:
         '''
         test the send message with reciever sockt availabe
         '''
@@ -187,3 +189,124 @@ class TestServer(unittest.TestCase):
         mock_json_data.encode.assert_called_once_with('utf-8')
         self.assertTrue(result)
         self.assertEqual(result, True)
+    
+    @patch('server.Server.message_logger')
+    @patch('server.json.dumps')
+    def test_send_message_with_exception(self,
+                                         mock_json: MagicMock,
+                                         mock_message_logger: MagicMock,
+                                         ) -> None:
+        '''
+        test the send message with reciever sockt availabe and
+        and exception is raised
+        '''
+        mock_json_data = MagicMock()
+        mock_reciever_socket = MagicMock()
+        mock_json.return_value = mock_json_data
+        mock_reciever_socket.send.side_effect = ValueError('Wrong format')
+
+        message = {'to': 22, 'text': 'writing unittests'}
+        self.server.clients = {22: mock_reciever_socket}
+
+        result = self.server.send_message(message)
+
+        mock_json.assert_called_once()
+        mock_reciever_socket.send.assert_called_once()
+        mock_json_data.encode.assert_called_once_with('utf-8')
+        self.assertEqual(result, False)
+        self.assertNotIn(22, self.server.clients)
+        mock_message_logger.assert_called_once_with('Error : 22 Not connected')
+
+    
+    def test_handle_client(self) -> None:
+        '''
+        test the handle client when the message is empty
+        '''
+        client_socket = MagicMock()
+        client_socket.recv.return_value = b''
+        self.server.connected = True
+
+        result = self.server.handle_client(client_socket, 'localhost')
+
+        self.assertTrue(client_socket.recv.called)
+        self.assertTrue(client_socket.close.called)
+        self.assertFalse(result)
+
+    def test_handle_client_connected_false(self) -> None:
+        '''
+        test the handle client when the message is empty
+        '''
+        client_socket = MagicMock()
+        self.server.connected = False
+        result = self.server.handle_client(client_socket, 'localhost')
+
+        self.assertFalse(client_socket.recv.called)
+        self.assertFalse(client_socket.close.called)
+        self.assertFalse(result)
+    
+    @patch('server.Server.send_message')
+    @patch('server.json.loads')
+    def test_handle_client_with_message(
+        self, mock_jsonload: MagicMock, mock_sendmessage: MagicMock
+        ) -> None:
+        '''
+        test the handle client when the message is empty
+        '''
+        client_socket = MagicMock()
+        client_socket.recv.side_effect = [
+            b'{"from": 33, "to": 44, "text": "Hello"}',  # First message
+            b''
+        ]
+        mock_jsonload.return_value = {'from': 33, 'to': 44, 'text': 'Hello'}
+        self.server.connected = True
+        result = self.server.handle_client(client_socket, 'localhost')
+
+        self.assertEqual(client_socket.recv.call_count, 2)
+        self.assertTrue(client_socket.close.call_count, 1)
+        self.assertFalse(result)
+        mock_jsonload.assert_called_with(
+            '{"from": 33, "to": 44, "text": "Hello"}')
+        mock_sendmessage.assert_called_once_with(
+            {'from': 33, 'to': 44, 'text': 'Hello'})
+
+
+    @patch('server.Server.send_message')
+    @patch('server.json.loads')
+    def test_handle_client_Send_message_return_false(
+        self, mock_jsonload: MagicMock, mock_sendmessage: MagicMock
+        ) -> None:
+        '''
+        test the handle client when the message is empty
+        '''
+        client_socket = MagicMock()
+        client_socket.recv.side_effect = [
+            b'{"from": 33, "to": 44, "text": "Hello"}',  # First message
+            b''
+        ]
+        mock_jsonload.return_value = {'from': 33, 'to': 44, 'text': 'Hello'}
+        self.server.connected = True
+        mock_sendmessage.return_value = False
+
+        result = self.server.handle_client(client_socket, 'localhost')
+
+        self.assertEqual(client_socket.recv.call_count, 2)
+        self.assertTrue(client_socket.close.call_count, 1)
+        self.assertFalse(result)
+        mock_jsonload.assert_called_with(
+            '{"from": 33, "to": 44, "text": "Hello"}')
+        mock_sendmessage.assert_called_once_with(
+            {'from': 33, 'to': 44, 'text': 'Hello'})
+
+        client_socket.send.assert_called_once_with(
+            b'Phone number your sennt to no registered')
+
+    @patch('server.Server.create_server')
+    def test_start_server(self,
+                          mock_create_server: MagicMock
+                          ) -> None:
+        '''
+        test when connected is set to false
+        '''
+        self.server.connected = False
+        self.server.start_server()
+        mock_create_server.assert_called_once()
