@@ -189,7 +189,7 @@ class TestServer(unittest.TestCase):
         mock_json_data.encode.assert_called_once_with('utf-8')
         self.assertTrue(result)
         self.assertEqual(result, True)
-    
+
     @patch('server.Server.message_logger')
     @patch('server.json.dumps')
     def test_send_message_with_exception(self,
@@ -217,7 +217,6 @@ class TestServer(unittest.TestCase):
         self.assertNotIn(22, self.server.clients)
         mock_message_logger.assert_called_once_with('Error : 22 Not connected')
 
-    
     def test_handle_client(self) -> None:
         '''
         test the handle client when the message is empty
@@ -243,12 +242,12 @@ class TestServer(unittest.TestCase):
         self.assertFalse(client_socket.recv.called)
         self.assertFalse(client_socket.close.called)
         self.assertFalse(result)
-    
+
     @patch('server.Server.send_message')
     @patch('server.json.loads')
     def test_handle_client_with_message(
         self, mock_jsonload: MagicMock, mock_sendmessage: MagicMock
-        ) -> None:
+    ) -> None:
         '''
         test the handle client when the message is empty
         '''
@@ -269,12 +268,11 @@ class TestServer(unittest.TestCase):
         mock_sendmessage.assert_called_once_with(
             {'from': 33, 'to': 44, 'text': 'Hello'})
 
-
     @patch('server.Server.send_message')
     @patch('server.json.loads')
     def test_handle_client_Send_message_return_false(
         self, mock_jsonload: MagicMock, mock_sendmessage: MagicMock
-        ) -> None:
+    ) -> None:
         '''
         test the handle client when the message is empty
         '''
